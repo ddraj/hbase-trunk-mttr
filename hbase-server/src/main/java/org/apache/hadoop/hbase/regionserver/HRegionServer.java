@@ -337,6 +337,7 @@ public class  HRegionServer implements ClientProtocol,
   RpcServer rpcServer;
 
   private final InetSocketAddress isa;
+  private UncaughtExceptionHandler handler;
 
   // Info server. Default access so can be used by unit tests. REGIONSERVER
   // is name of the webapp and the attribute name used stuffing this instance
@@ -366,7 +367,12 @@ public class  HRegionServer implements ClientProtocol,
   // HLog and HLog roller. log is protected rather than private to avoid
   // eclipse warning when accessed by inner classes
   protected volatile HLog hlog;
+  // Optionally, the meta updates are written to a different hlog. If this
+  // regionserver holds meta, then this field will be non-null.
+  protected volatile HLog hlogForMeta;
+  
   LogRoller hlogRoller;
+  LogRoller metaHlogRoller;
 
   // flag set after we're done setting up server threads (used for testing)
   protected volatile boolean isOnline;
@@ -518,6 +524,11 @@ public class  HRegionServer implements ClientProtocol,
       "hbase.regionserver.kerberos.principal", this.isa.getHostName());
     regionServerAccounting = new RegionServerAccounting();
     cacheConfig = new CacheConfig(conf);
+    handler = new UncaughtExceptionHandler() {
+      public void uncaughtException(Thread t, Throwable e) {
+        abort("Uncaught exception in service thread " + t.getName(), e);
+      }
+    };
   }
 
   /**
@@ -924,6 +935,7 @@ public class  HRegionServer implements ClientProtocol,
     if (this.cacheFlusher != null) this.cacheFlusher.interruptIfNecessary();
     if (this.compactSplitThread != null) this.compactSplitThread.interruptIfNecessary();
     if (this.hlogRoller != null) this.hlogRoller.interruptIfNecessary();
+    if (this.metaHlogRoller != null) this.metaHlogRoller.interruptIfNecessary();
     if (this.compactionChecker != null)
       this.compactionChecker.interrupt();
 
@@ -1401,9 +1413,41 @@ public class  HRegionServer implements ClientProtocol,
   }
 
   /**
+   * Setup WAL log and replication if enabled.
+   * Replication setup is done in here because it wants to be hooked up to WAL.
+   * @return A WAL instance.
+   * @throws IOException
+   */
+  @Override
+  public HLog setupMetaWAL() throws IOException {
+    if (this.hlogForMeta == null) {
+      final String logName
+      = HLogUtil.getHLogDirectoryName(this.serverNameFromMasterPOV.toString());
+
+      Path logdir = new Path(rootDir, logName);
+      if (LOG.isDebugEnabled()) LOG.debug("logdir=" + logdir);
+
+      return (this.hlogForMeta = instantiateMetaHLog(rootDir, logName));
+    }
+    return this.hlogForMeta;
+  }
+
+  /**
+   * Called by {@link #setupMetaWAL()} creating WAL instance.
+   * @param rootdir
+   * @param logName
+   * @return WAL instance.
+   * @throws IOException
+   */
+  protected HLog instantiateMetaHLog(Path rootdir, String logName) throws IOException {
+    return HLogFactory.createMetaHLog(this.fs.getBackingFs(), rootdir, logName, this.conf,
+        getMETAWALActionListeners(), this.serverNameFromMasterPOV.toString());
+  }
+
+  /**
    * Called by {@link #setupWALAndReplication()} creating WAL instance.
-   * @param logdir
-   * @param oldLogDir
+   * @param rootdir
+   * @param logName
    * @return WAL instance.
    * @throws IOException
    */
@@ -1428,6 +1472,22 @@ public class  HRegionServer implements ClientProtocol,
       // Replication handler is an implementation of WALActionsListener.
       listeners.add(this.replicationSourceHandler.getWALActionsListener());
     }
+    return listeners;
+  }
+  /**
+   * Called by {@link #instantiateMetaHLog(Path, Path)} setting up WAL instance.
+   * Add any {@link WALActionsListener}s you want inserted before WAL startup.
+   * @return List of WALActionsListener that will be passed in to
+   * {@link FSHLog} on construction.
+   */
+  protected List<WALActionsListener> getMETAWALActionListeners() {
+    List<WALActionsListener> listeners = new ArrayList<WALActionsListener>();
+    // Log roller.
+    this.metaHlogRoller = new MetaLogRoller(this, this);
+    String n = Thread.currentThread().getName();
+    Threads.setDaemonThreadRunning(this.metaHlogRoller.getThread(), 
+        n + ".META.logRoller", handler);
+    listeners.add(this.metaHlogRoller);
     return listeners;
   }
 
@@ -1460,12 +1520,6 @@ public class  HRegionServer implements ClientProtocol,
    */
   private void startServiceThreads() throws IOException {
     String n = Thread.currentThread().getName();
-    UncaughtExceptionHandler handler = new UncaughtExceptionHandler() {
-      public void uncaughtException(Thread t, Throwable e) {
-        abort("Uncaught exception in service thread " + t.getName(), e);
-      }
-    };
-
     // Start executor services
     this.service = new ExecutorService(getServerName().toString());
     this.service.startExecutorService(ExecutorType.RS_OPEN_REGION,
@@ -1562,7 +1616,12 @@ public class  HRegionServer implements ClientProtocol,
     if (!(leases.isAlive()
         && cacheFlusher.isAlive() && hlogRoller.isAlive()
         && this.compactionChecker.isAlive())) {
+      LOG.info("ISALIVE: " + leases.isAlive() + " " +cacheFlusher.isAlive() + " "+ this.compactionChecker.isAlive() + " " + hlogRoller.isAlive() + " " + metaHlogRoller.isAlive()); //REMOVETHIS
       stop("One or more threads are no longer alive -- stop");
+      return false;
+    }
+    if (metaHlogRoller != null && !metaHlogRoller.isAlive()) {
+      stop("Meta HLog roller thread is no longer alive -- stop");
       return false;
     }
     return true;
@@ -1715,6 +1774,9 @@ public class  HRegionServer implements ClientProtocol,
     Threads.shutdown(this.cacheFlusher.getThread());
     if (this.hlogRoller != null) {
       Threads.shutdown(this.hlogRoller.getThread());
+    }
+    if (this.metaHlogRoller != null) {
+      Threads.shutdown(this.metaHlogRoller.getThread());
     }
     if (this.compactSplitThread != null) {
       this.compactSplitThread.join();
@@ -3970,5 +4032,10 @@ public class  HRegionServer implements ClientProtocol,
     public RegionScannerHolder(RegionScanner s) {
       this.s = s;
     }
+  }
+
+  @Override
+  public HLog getMetaWAL() {
+    return this.hlogForMeta;
   }
 }

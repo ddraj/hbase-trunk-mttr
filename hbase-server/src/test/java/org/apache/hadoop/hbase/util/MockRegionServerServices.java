@@ -162,4 +162,14 @@ public class MockRegionServerServices implements RegionServerServices {
   public Leases getLeases() {
     return null;
   }
+
+  @Override
+  public HLog getMetaWAL() {
+    return null;
+  }
+
+  @Override
+  public HLog setupMetaWAL() throws IOException {
+    return null;
+  }
 }

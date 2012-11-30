@@ -32,7 +32,7 @@ import org.apache.zookeeper.KeeperException;
  * Services provided by {@link HRegionServer}
  */
 @InterfaceAudience.Private
-public interface RegionServerServices extends OnlineRegions {
+public interface RegionServerServices extends OnlineRegions, MetaServices {
   /**
    * @return True if this regionserver is stopping.
    */

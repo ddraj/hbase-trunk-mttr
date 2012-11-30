@@ -18,11 +18,15 @@
  */
 package org.apache.hadoop.hbase.regionserver.handler;
 
+
+import java.io.IOException;
+
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.regionserver.RegionServerServices;
+import org.apache.hadoop.hbase.regionserver.wal.HLog;
 
 /**
  * Handles opening of a meta region on a region server.
@@ -41,5 +45,14 @@ public class OpenMetaHandler extends OpenRegionHandler {
       final HTableDescriptor htd, int versionOfOfflineNode) {
     super(server, rsServices, regionInfo, htd, EventType.M_RS_OPEN_META,
         versionOfOfflineNode);
+  }
+  @Override
+  public void process() throws IOException {
+    rsServices.setupMetaWAL();
+    super.process();
+  }
+  @Override
+  protected HLog getWAL() {
+    return rsServices.getMetaWAL();
   }
 }

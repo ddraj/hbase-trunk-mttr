@@ -76,7 +76,7 @@ public class HLogUtil {
   /**
    * Pattern used to validate a HLog file name
    */
-  private static final Pattern pattern = Pattern.compile(".*\\.\\d*");
+  private static final Pattern pattern = Pattern.compile(".*\\.\\d*(.META)*");
 
   /**
    * @param filename

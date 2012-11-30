@@ -522,4 +522,16 @@ class MockRegionServer implements AdminProtocol, ClientProtocol, RegionServerSer
     // TODO Auto-generated method stub
     return null;
   }
+
+  @Override
+  public HLog getMetaWAL() {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public HLog setupMetaWAL() throws IOException {
+    // TODO Auto-generated method stub
+    return null;
+  }
 }
