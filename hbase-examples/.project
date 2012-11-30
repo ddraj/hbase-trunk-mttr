@@ -1,0 +1,19 @@
+<projectDescription>
+  <name>hbase-examples</name>
+  <comment>Examples of HBase usage. NO_M2ECLIPSE_SUPPORT: Project files created with the maven-eclipse-plugin are not supported in M2Eclipse.</comment>
+  <projects>
+    <project>hbase-common</project>
+    <project>hbase-hadoop-compat</project>
+    <project>hbase-hadoop1-compat</project>
+    <project>hbase-protocol</project>
+    <project>hbase-server</project>
+  </projects>
+  <buildSpec>
+    <buildCommand>
+      <name>org.eclipse.jdt.core.javabuilder</name>
+    </buildCommand>
+  </buildSpec>
+  <natures>
+    <nature>org.eclipse.jdt.core.javanature</nature>
+  </natures>
+</projectDescription>

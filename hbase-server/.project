@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>hbase-server</name>
+	<comment>Main functionality for HBase. NO_M2ECLIPSE_SUPPORT: Project files created with the maven-eclipse-plugin are not supported in M2Eclipse.</comment>
+	<projects>
+		<project>hbase-common</project>
+		<project>hbase-hadoop-compat</project>
+		<project>hbase-hadoop1-compat</project>
+		<project>hbase-protocol</project>
+	</projects>
+	<buildSpec>
+		<buildCommand>
+			<name>org.jamon.project.templateBuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>org.eclipse.jdt.core.javabuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>org.jamon.project.markerUpdater</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+	</buildSpec>
+	<natures>
+		<nature>org.eclipse.jdt.core.javanature</nature>
+		<nature>org.jamon.project.jamonnature</nature>
+	</natures>
+	<linkedResources>
+		<link>
+			<name>hbase-common</name>
+			<type>2</type>
+			<location>/Users/ddas/workspace/hbase/hbase-common</location>
+		</link>
+	</linkedResources>
+</projectDescription>
